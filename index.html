@@ -468,7 +468,7 @@
   ];
 
   const EXTRA_QUERIES = [
-    { name: 'Habitat Program', color: '#e76f51', url: 'https://geodataservices.wdfw.wa.gov/arcgis/rest/services/HP_Projects/HabitatProgramAreasOfResponsibilitiesGeoLib/MapServer/0' },
+    { name: 'Habitat Contacts', color: '#e76f51', url: 'https://geodataservices.wdfw.wa.gov/arcgis/rest/services/HP_Projects/HabitatProgramAreasOfResponsibilitiesGeoLib/MapServer/0' },
     { name: 'DNR Hydro (Watercourses)', color: '#457b9d', url: 'https://gis.dnr.wa.gov/site2/rest/services/Public_Forest_Practices/WADNR_PUBLIC_FP_Hydro/MapServer/0' },
     { name: 'DNR Hydro (Waterbodies)', color: '#457b9d', url: 'https://gis.dnr.wa.gov/site2/rest/services/Public_Forest_Practices/WADNR_PUBLIC_FP_Hydro/MapServer/1' },
     { name: 'WA Public Lands', color: '#52b788', url: 'https://gis.dnr.wa.gov/site3/rest/services/Public_Boundaries/WADNR_PUBLIC_Major_Public_Lands_NonDNR/MapServer/0' }
@@ -905,7 +905,7 @@
             data.features.forEach(feat => {
                const attrs = feat.attributes || {};
                
-               if (extra.name === 'Habitat Program') {
+               if (extra.name === 'Habitat Contacts') {
                    const role = getAttr(attrs, ['rolecode', 'role', 'title']).toUpperCase();
                    if (role !== 'ARHPM' && role !== 'BIO') return;
                }
@@ -1017,14 +1017,14 @@
         let subTitle = item._layer ? item._layer.name : 'Spatial Intersect';
         let sciName = getAttr(attrs, ['scientific_name']) || '';
 
-        if (item._extraName === 'Habitat Program') {
+        if (item._extraName === 'Habitat Contacts') {
            const cName = getAttr(attrs, ['name', 'staffname', 'contactname', 'staff', 'contact', 'biologist']) || 'Unknown Name';
            const cRole = getAttr(attrs, ['rolecode', 'role', 'title']);
            const cPhone = getAttr(attrs, ['phone', 'phonenumber', 'telephone']);
            const cEmail = getAttr(attrs, ['email', 'emailaddress']);
            
            mainTitle = [cName, cRole].filter(Boolean).join(' • ');
-           subTitle = [cPhone, cEmail].filter(Boolean).join(' • ') || 'Habitat Program';
+           subTitle = [cPhone, cEmail].filter(Boolean).join(' • ') || 'Habitat Contacts';
            
         } else if (item._extraName?.includes('DNR Hydro')) {
            const gnis = getAttr(attrs, ['wc_gnis_nm', 'wb_gnis_nm', 'fp_wtrty_nm']) || 'Unnamed Water Feature';
@@ -1072,9 +1072,9 @@
            
            let drawerTitle = feature._isExtra ? feature._extraName : (getAttr(feature.attributes, ['occurrence_name']) || 'Unknown');
            
-           if (feature._extraName === 'Habitat Program') {
+           if (feature._extraName === 'Habitat Contacts') {
                const cName = getAttr(feature.attributes, ['name', 'staffname', 'contactname', 'staff', 'contact']);
-               if (cName) drawerTitle = cName + ' (Habitat Program)';
+               if (cName) drawerTitle = cName + ' (Habitat Contacts)';
            } else if (feature._extraName?.includes('DNR Hydro')) {
                drawerTitle = getAttr(feature.attributes, ['wc_gnis_nm', 'wb_gnis_nm', 'fp_wtrty_nm']) || 'Unnamed Water Feature';
            } else if (feature._extraName === 'WA Public Lands') {
@@ -1148,8 +1148,8 @@
 
   function phsStyle(feature) {
     if (feature.properties?._isExtra) {
-      // Applied strictly to force outline-only / no fill constraints for Habitat Program layer
-      if (feature.properties._extraName === 'Habitat Program') {
+      // Applied strictly to force outline-only / no fill constraints for Habitat Contacts layer
+      if (feature.properties._extraName === 'Habitat Contacts') {
           return { color: feature.properties._color, weight: 3, opacity: 0.9, fill: false, fillOpacity: 0 };
       }
       return { color: feature.properties._color, weight: 3, opacity: 0.9, fillColor: feature.properties._color, fillOpacity: 0.25 };
