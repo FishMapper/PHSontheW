@@ -288,8 +288,8 @@
 <body>
 
 <header>
-  <h1><span> Ken's </span> <em>WDFW PHS Engine</em></h1>
-  <div class="hbadge">WA Parcels + Intersects</div>
+  <h1><span>Ken's</span> PHS <em> Engine</em></h1>
+  <div class="hbadge">WDFW PHS</div>
 </header>
 
 <main>
@@ -468,7 +468,7 @@
   ];
 
   const EXTRA_QUERIES = [
-    { name: 'WDFW Habitat Contact', color: '#e76f51', url: 'https://geodataservices.wdfw.wa.gov/arcgis/rest/services/HP_Projects/HabitatProgramAreasOfResponsibilitiesGeoLib/MapServer/0' },
+    { name: 'WDFW Habitat Program', color: '#e76f51', url: 'https://geodataservices.wdfw.wa.gov/arcgis/rest/services/HP_Projects/HabitatProgramAreasOfResponsibilitiesGeoLib/MapServer/0' },
     { name: 'DNR Hydro (Watercourses)', color: '#457b9d', url: 'https://gis.dnr.wa.gov/site2/rest/services/Public_Forest_Practices/WADNR_PUBLIC_FP_Hydro/MapServer/0' },
     { name: 'DNR Hydro (Waterbodies)', color: '#457b9d', url: 'https://gis.dnr.wa.gov/site2/rest/services/Public_Forest_Practices/WADNR_PUBLIC_FP_Hydro/MapServer/1' },
     { name: 'WA Public Lands', color: '#52b788', url: 'https://gis.dnr.wa.gov/site3/rest/services/Public_Boundaries/WADNR_PUBLIC_Major_Public_Lands_NonDNR/MapServer/0' }
@@ -538,6 +538,7 @@
     attribution: '© OpenStreetMap contributors', maxZoom: 19
   }).addTo(map);
 
+  // Runtime CSS injection for the unique PLS labels
   const styleElement = document.createElement('style');
   styleElement.innerHTML = `
     .pls-label {
@@ -557,6 +558,7 @@
   const parcelLayer = L.geoJSON(null, { style: parcelStyle, onEachFeature: onEachParcel }).addTo(map);
   const phsLayer = L.geoJSON(null, { style: phsStyle, pointToLayer: phsPoint }).addTo(map);
   
+  // Vector engines for Sections and Townships to enable client side outline/labeling logic
   const sectionsLayer = L.geoJSON(null).addTo(map);
   const townshipsLayer = L.geoJSON(null).addTo(map);
 
@@ -566,7 +568,7 @@
     pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 10, color: '#ffea00', weight: 4, fillOpacity: 0.2 })
   }).addTo(map);
 
-  // ── 4. Image/Tile Overlay Configuration ──
+  // ── 4. Image/Tile Overlay Configuration (Sections/Townships removed to become vectors) ──
   L.TileLayer.ArcGIS = L.TileLayer.extend({
     getTileUrl: function (coords) {
       const tileSize = this.getTileSize();
@@ -624,23 +626,13 @@
 
   async function fetchVectorOverlay(id, layerId, leafletLayer) {
     if (!map.hasLayer(leafletLayer)) return;
-
-    // Calculate real-time visual scale threshold boundary
-    const z = map.getZoom();
-    const lat = map.getCenter().lat;
-    const mPerPx = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z);
-    const scale = Math.round(mPerPx * 96 / 0.0254);
-    
-    // Strict threshold parameter check: Turn on labels/features strictly at 1:100,000 or closer
-    if (scale > 100000) { 
-        leafletLayer.clearLayers(); 
-        return; 
-    }
+    if (map.getZoom() < 9) { leafletLayer.clearLayers(); return; } // Performance clamp
 
     if (activeOverlayAborts[id]) activeOverlayAborts[id].abort();
     activeOverlayAborts[id] = new AbortController();
 
     const b = map.getBounds();
+    const r = v => Math.round(v * 10000) / 10000;
     const geomParam = encodeURIComponent(JSON.stringify({
       xmin: b.getWest(), ymin: b.getSouth(), xmax: b.getEast(), ymax: b.getNorth(), spatialReference: { wkid: 4326 }
     }));
@@ -668,6 +660,7 @@
            opacity: sliderVal / 100
         });
 
+        // Guarantee text matches unique condition precisely once per polygon block
         if (labelText && !seenLabels.has(labelText)) {
           seenLabels.add(labelText);
           layer.bindTooltip(labelText, {
@@ -678,7 +671,7 @@
         }
       });
     } catch(e) {
-      if (e.name !== 'AbortError') console.warn(`Vector overlay fetch intercept failed:`, e);
+      if (e.name !== 'AbortError') console.warn(`Vector compilation intercept failed:`, e);
     }
   }
 
@@ -912,8 +905,7 @@
             data.features.forEach(feat => {
                const attrs = feat.attributes || {};
                
-               // Target string updated to match "WDFW Habitat Contact" parameters
-               if (extra.name === 'WDFW Habitat Contact') {
+               if (extra.name === 'WDFW Habitat Program') {
                    const role = getAttr(attrs, ['rolecode', 'role', 'title']).toUpperCase();
                    if (role !== 'ARHPM' && role !== 'BIO') return;
                }
@@ -1009,18 +1001,6 @@
     });
 
     for (const [groupName, groupData] of Object.entries(grouped)) {
-      
-      // Perform strict custom sorting block when handling the Contact accordion channel
-      if (groupName === 'WDFW Habitat Contact') {
-          groupData.items.sort((a, b) => {
-              const rA = getAttr(a.attributes, ['rolecode', 'role', 'title']).toUpperCase();
-              const rB = getAttr(b.attributes, ['rolecode', 'role', 'title']).toUpperCase();
-              if (rA === 'BIO' && rB !== 'BIO') return -1;
-              if (rA !== 'BIO' && rB === 'BIO') return 1;
-              return rA.localeCompare(rB);
-          });
-      }
-
       html += `
         <div class="acc-group">
           <div class="acc-header" onclick="this.parentElement.classList.toggle('open')">
@@ -1037,15 +1017,14 @@
         let subTitle = item._layer ? item._layer.name : 'Spatial Intersect';
         let sciName = getAttr(attrs, ['scientific_name']) || '';
 
-        if (item._extraName === 'WDFW Habitat Contact') {
+        if (item._extraName === 'WDFW Habitat Program') {
            const cName = getAttr(attrs, ['name', 'staffname', 'contactname', 'staff', 'contact', 'biologist']) || 'Unknown Name';
            const cRole = getAttr(attrs, ['rolecode', 'role', 'title']);
            const cPhone = getAttr(attrs, ['phone', 'phonenumber', 'telephone']);
            const cEmail = getAttr(attrs, ['email', 'emailaddress']);
            
-           // Swapped layout schema: Role code is pinned first, followed by name string
-           mainTitle = [cRole, cName].filter(Boolean).join(' • ');
-           subTitle = [cPhone, cEmail].filter(Boolean).join(' • ') || 'Habitat Contact';
+           mainTitle = [cName, cRole].filter(Boolean).join(' • ');
+           subTitle = [cPhone, cEmail].filter(Boolean).join(' • ') || 'Habitat Program';
            
         } else if (item._extraName?.includes('DNR Hydro')) {
            const gnis = getAttr(attrs, ['wc_gnis_nm', 'wb_gnis_nm', 'fp_wtrty_nm']) || 'Unnamed Water Feature';
@@ -1093,9 +1072,9 @@
            
            let drawerTitle = feature._isExtra ? feature._extraName : (getAttr(feature.attributes, ['occurrence_name']) || 'Unknown');
            
-           if (feature._extraName === 'WDFW Habitat Contact') {
+           if (feature._extraName === 'WDFW Habitat Program') {
                const cName = getAttr(feature.attributes, ['name', 'staffname', 'contactname', 'staff', 'contact']);
-               if (cName) drawerTitle = cName + ' (Habitat Contact)';
+               if (cName) drawerTitle = cName + ' (Habitat Program)';
            } else if (feature._extraName?.includes('DNR Hydro')) {
                drawerTitle = getAttr(feature.attributes, ['wc_gnis_nm', 'wb_gnis_nm', 'fp_wtrty_nm']) || 'Unnamed Water Feature';
            } else if (feature._extraName === 'WA Public Lands') {
@@ -1169,8 +1148,8 @@
 
   function phsStyle(feature) {
     if (feature.properties?._isExtra) {
-      // Applied strictly to remove the fill entirely from the Habitat polygon features
-      if (feature.properties._extraName === 'WDFW Habitat Contact') {
+      // Applied strictly to force outline-only / no fill constraints for Habitat Program layer
+      if (feature.properties._extraName === 'WDFW Habitat Program') {
           return { color: feature.properties._color, weight: 3, opacity: 0.9, fill: false, fillOpacity: 0 };
       }
       return { color: feature.properties._color, weight: 3, opacity: 0.9, fillColor: feature.properties._color, fillOpacity: 0.25 };
@@ -1183,6 +1162,44 @@
     const occName = getAttr(feature.properties, ['occurrence_name']);
     const color = feature.properties?._isExtra ? feature.properties._color : occColor(occName);
     return L.circleMarker(latlng, { radius: 6, fillColor: color, color: '#fff', weight: 1.5, fillOpacity: 0.9 });
+  }
+
+  function buildLegend(extraResults) {
+    const container = document.getElementById('leg-items');
+    let html = Object.entries(occColorMap).map(([name, color]) => `
+      <div class="leg-row"><span class="leg-swatch" style="background:${color}"></span><span class="leg-name" title="${name}">${name}</span></div>
+    `).join('');
+
+    if (extraResults && extraResults.length > 0) {
+      const extraLegendMap = {};
+      extraResults.forEach(r => {
+         let name = r._extraName;
+         if (name.includes('Hydro')) {
+             const wCode = getAttr(r.attributes, ['fp_wtrty_cd']);
+             if (wCode) name = `DNR Hydro (Type ${wCode})`;
+         }
+         extraLegendMap[name] = r._color;
+      });
+      
+      Object.entries(extraLegendMap).forEach(([name, color]) => {
+        html += `<div class="leg-row"><span class="leg-swatch" style="background:${color}; border-radius:10px;"></span><span class="leg-name" title="${name}">${name}</span></div>`;
+      });
+    }
+
+    container.innerHTML = html;
+    document.getElementById('phs-legend').style.display = 'block';
+  }
+
+  function showListEmpty(msg) { 
+    const list = document.getElementById('parcel-list');
+    if(list) list.innerHTML = `<div class="empty-state"><div class="icon">🗺️</div>${msg}</div>`; 
+  }
+  
+  function setStatus(msg, type) { 
+    const t = document.getElementById('status-text');
+    const b = document.getElementById('status-bar');
+    if(t) t.textContent = msg; 
+    if(b) b.className = type || ''; 
   }
 
   // ── 7. Global Event Listeners ──
@@ -1241,7 +1258,7 @@
        setStatus(`Zoomed to ${lat}, ${lng}`, 'success');
     });
 
-    // Client-Side Vector Toggle Engine
+    // Client-Side Vector Toggle Engine for Sections & Townships
     document.getElementById('lyr-sections').addEventListener('change', (e) => {
         if (e.target.checked) {
             sectionsLayer.addTo(map);
@@ -1260,7 +1277,7 @@
         }
     });
 
-    // Dynamic Opacity Sliders
+    // Dynamic Opacity Sliders tied directly to Vector styling rules
     document.getElementById('op-sections').addEventListener('input', (e) => {
         sectionsLayer.setStyle({ opacity: e.target.value / 100 });
     });
