@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Parcel → WDFW PHS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Base & Variables ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1a1a1a; --paper: #f9f9f9; --accent: #c84b2f;
+      --green: #2b7a4b; --blue: #2b65c8; --amber: #b07a10;
+      --muted: #888888; --border: #e0e0e0; --card: #ffffff;
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
+      --shadow-md: 0 8px 24px rgba(0,0,0,0.12);
+      --font-mono: 'DM Mono', monospace;
+      --font-serif: 'Fraunces', serif;
+    }
+    body { 
+      font-family: var(--font-mono); 
+      background: var(--paper); 
+      color: var(--ink); 
+      height: 100vh; 
+      display: flex; 
+      flex-direction: column; 
+      overflow: hidden; 
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Scrollbars ── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cccccc; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #aaaaaa; }
+
+    /* ── Header ── */
+    header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: #ffffff; border-bottom: 1px solid var(--border); z-index: 10; box-shadow: var(--shadow-sm); flex-shrink: 0; }
+    header h1 { font-family: var(--font-serif); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.01em; color: var(--ink); }
+    header h1 em { color: var(--green); font-style: normal; }
+    header h1 span { color: var(--muted); font-weight: 300; }
+    .hbadge { margin-left: auto; font-size: 0.65rem; color: #555; background: #f0f0f0; padding: 4px 10px; border-radius: 20px; font-weight: 500; letter-spacing: 0.02em; }
+
+    /* ── Layout ── */
+    main { flex: 1; display: flex; overflow: hidden; background: var(--paper); }
+    aside { width: 340px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--card); border-right: 1px solid var(--border); overflow: hidden; z-index: 5; box-shadow: 2px 0 12px rgba(0,0,0,0.03); }
+    
+    /* ── Utilities & Inputs ── */
+    .input-standard {
+      border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+      font-family: var(--font-mono); font-size: 0.75rem; background: var(--card);
+      color: var(--ink); outline: none; transition: all 0.2s;
+    }
+    .input-standard:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(43, 122, 75, 0.1); }
+    
+    .btn-standard {
+      background: var(--ink); color: var(--card); border: none; border-radius: 6px;
+      padding: 8px 14px; font-family: var(--font-mono); font-size: 0.75rem;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap; font-weight: 500;
+    }
+    .btn-standard:hover { background: var(--green); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+    .btn-outline-green {
+      background: transparent; border: 1px solid var(--green); border-radius: 6px; color: var(--green);
+      cursor: pointer; font-family: var(--font-mono); font-size: 0.65rem; padding: 4px 10px; font-weight: 500; transition: all 0.2s;
+    }
+    .btn-outline-green:hover { background: var(--green); color: white; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; background: #fafafa; }
+    .tab { flex: 1; padding: 12px 8px; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; text-align: center; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; transition: all 0.2s; font-weight: 500; }
+    .tab:hover { color: var(--ink); background: var(--card); }
+    .tab.active { color: var(--green); border-bottom-color: var(--green); background: var(--card); }
+    .tab-panel { display: none; flex: 1; flex-direction: column; overflow: hidden; animation: fadeIn 0.3s ease; }
+    .tab-panel.active { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── Search Area ── */
+    .search-box { padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .sb-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 8px; font-weight: 500; }
+    .sb-row { display: flex; gap: 8px; margin-bottom: 6px; }
+    .search-wrap { position: relative; flex: 1; }
+    #parcel-search-input { width: 100%; padding-right: 28px; }
+    .search-clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--muted); font-size: 0.9rem; line-height: 1; display: none; transition: color 0.2s; }
+    .search-clear:hover { color: var(--accent); }
+    .search-clear.visible { display: block; }
+    .coord-inputs { display: flex; gap: 8px; flex: 1; }
+    .coord-inputs input { width: 50%; }
+
+    /* ── Selection Summary ── */
+    .sel-summary { padding: 10px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; background: #fdfdfd; }
+    .sel-pill { background: var(--green); color: white; border-radius: 12px; padding: 3px 10px; font-size: 0.65rem; font-weight: 500; box-shadow: 0 2px 4px rgba(43, 122, 75, 0.2); }
+    .sel-clear { margin-left: auto; color: var(--accent); cursor: pointer; font-size: 0.65rem; background: none; border: none; font-family: var(--font-mono); font-weight: 500; transition: opacity 0.2s; }
+    .sel-clear:hover { opacity: 0.7; }
+
+    /* ── Parcel Info Card & List ── */
+    #parcel-info-card { flex-shrink: 0; border-bottom: 1px solid var(--border); background: #f2f8f4; padding: 14px 18px; display: none; max-height: 180px; overflow-y: auto; border-left: 4px solid var(--green); }
+    #parcel-info-card.visible { display: block; animation: fadeIn 0.2s ease; }
+    .pic-title { font-family: var(--font-serif); font-size: 1rem; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+    .pic-row { display: flex; gap: 8px; margin-bottom: 4px; align-items: baseline; font-size: 0.75rem; }
+    .pic-key { color: var(--muted); font-size: 0.65rem; min-width: 70px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.05em; }
+    .pic-val { color: var(--ink); word-break: break-word; font-weight: 500; }
+    .pic-link, .pu-link, .drawer-link { color: var(--blue); text-decoration: none; font-weight: 500; }
+    .pic-link:hover, .pu-link:hover, .drawer-link:hover { text-decoration: underline; }
+    .pic-dismiss { float: right; background: rgba(0,0,0,0.05); border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; color: var(--ink); font-size: 0.8rem; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+    .pic-dismiss:hover { background: rgba(0,0,0,0.1); }
+
+    #parcel-list, #phs-results { flex: 1; overflow-y: auto; background: var(--card); }
+    
+    .parcel-item, .phs-item { padding: 12px 18px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s; display: flex; align-items: flex-start; gap: 10px; }
+    .parcel-item:hover, .phs-item:hover { background: #f9f9f9; }
+    .parcel-item.selected { background: #f2f8f4; border-left: 3px solid var(--green); padding-left: 15px; }
+    
+    .p-check { width: 16px; height: 16px; border: 1.5px solid var(--muted); border-radius: 4px; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; font-size: 10px; transition: all 0.2s; background: white; }
+    .parcel-item.selected .p-check { background: var(--green); border-color: var(--green); color: white; }
+    .p-info, .phs-body { flex: 1; min-width: 0; }
+    .p-main { font-size: 0.8rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+    .p-sub { font-size: 0.65rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+
+    /* ── Query Bar ── */
+    .query-bar { padding: 14px 18px; border-top: 1px solid var(--border); background: var(--card); flex-shrink: 0; box-shadow: 0 -4px 12px rgba(0,0,0,0.02); }
+    
+    @keyframes pulse-btn {
+      0% { box-shadow: 0 0 0 0 rgba(43, 122, 75, 0.4); }
+      70% { box-shadow: 0 0 0 6px rgba(43, 122, 75, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(43, 122, 75, 0); }
+    }
+    
+    #query-phs-btn { width: 100%; padding: 12px; background: var(--green); color: white; border: none; border-radius: 8px; font-family: var(--font-mono); font-size: 0.8rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+    #query-phs-btn:not(:disabled) { animation: pulse-btn 2s infinite; }
+    #query-phs-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); animation: none; box-shadow: var(--shadow-sm); }
+    #query-phs-btn:disabled { opacity: 0.4; cursor: not-allowed; animation: none; background: var(--muted); }
+    #sel-badge { background: white; color: var(--ink); border-radius: 12px; font-size: 0.65rem; padding: 2px 8px; font-weight: 600; }
+
+    /* ── PHS Results Accordion ── */
+    .acc-group { border-bottom: 1px solid var(--border); }
+    .acc-header { padding: 12px 18px; display: flex; align-items: center; gap: 10px; cursor: pointer; background: #fafafa; transition: background 0.15s; user-select: none; }
+    .acc-header:hover { background: #f0f0f0; }
+    .acc-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); }
+    .acc-name { flex: 1; font-size: 0.75rem; font-weight: 600; color: var(--ink); }
+    .acc-count { font-size: 0.65rem; background: var(--border); color: var(--ink); padding: 2px 8px; border-radius: 12px; font-weight: 500; }
+    .acc-chevron { font-size: 0.6rem; color: var(--muted); transition: transform 0.2s; flex-shrink: 0; }
+    .acc-group.open .acc-chevron { transform: rotate(90deg); }
+    .acc-body { display: none; background: white; }
+    .acc-group.open .acc-body { display: block; animation: fadeIn 0.2s ease; }
+    .phs-sci { font-size: 0.7rem; font-style: italic; color: var(--muted); margin-bottom: 4px; }
+
+    /* ── Status & States ── */
+    .empty-state { text-align: center; padding: 48px 24px; color: var(--muted); font-size: 0.75rem; line-height: 1.6; }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.8; }
+
+    #status-bar { padding: 8px 18px; font-size: 0.65rem; color: var(--muted); border-top: 1px solid var(--border); background: #fafafa; min-height: 36px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; font-weight: 500; }
+    #status-bar.error { color: var(--accent); background: #fdf2ef; }
+    #status-bar.loading { color: var(--blue); }
+    #status-bar.success { color: var(--green); }
+    .spinner { width: 12px; height: 12px; border: 2px solid rgba(43, 101, 200, 0.2); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; display: none; }
+    #status-bar.loading .spinner { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Map Elements ── */
+    #map-wrap { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; z-index: 0; background: #eef2f5; }
+
+    .leaflet-control-container .leaflet-control { border: none; box-shadow: var(--shadow-sm); border-radius: 8px; overflow: hidden; }
+    .leaflet-bar a { color: var(--ink) !important; background: white !important; }
+    .leaflet-bar a:hover { background: #f5f5f5 !important; }
+
+    #layers-ctrl { position: absolute; top: 15px; left: 15px; z-index: 999; }
+    #layers-toggle-btn {
+      display: flex; align-items: center; gap: 8px;
+      background: white; border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px;
+      box-shadow: var(--shadow-md);
+      font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500;
+      cursor: pointer; color: var(--ink); white-space: nowrap;
+      transition: all 0.2s;
+    }
+    #layers-toggle-btn:hover { background: #f9f9f9; transform: translateY(-1px); }
+    
+    #layers-panel {
+      background: white; border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px;
+      box-shadow: var(--shadow-md); min-width: 230px;
+      margin-top: 8px; max-height: calc(100vh - 120px);
+      overflow-y: auto; display: none; transform-origin: top left;
+      animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    #layers-panel.open { display: block; }
+    
+    .lc-section-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 10px; font-weight: 600; }
+    .lc-section-label:not(:first-child) { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+    .layer-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 0.7rem; color: var(--ink); }
+    .layer-row input[type=checkbox] { accent-color: var(--green); cursor: pointer; flex-shrink: 0; width: 14px; height: 14px; }
+    .layer-row .lr-name { flex: 1; font-weight: 500; }
+    .layer-row .lr-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); }
+    .opacity-row { display: flex; align-items: center; gap: 8px; padding: 0 0 8px 22px; font-size: 0.65rem; color: var(--muted); }
+    .opacity-row input[type=range] { flex: 1; accent-color: var(--green); height: 4px; cursor: pointer; border-radius: 2px; }
+    
+    .bm-options { display: flex; flex-direction: column; gap: 6px; }
+    .bm-btn { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1.5px solid transparent; border-radius: 6px; background: #f5f5f5; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; cursor: pointer; color: var(--ink); transition: all 0.2s; text-align: left; }
+    .bm-btn:hover { background: #eeeeee; }
+    .bm-btn.active { background: white; border-color: var(--green); box-shadow: 0 2px 6px rgba(43, 122, 75, 0.15); }
+    .bm-thumb { width: 22px; height: 16px; border-radius: 3px; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); }
+
+    #zoom-scale-ctrl {
+      position: absolute; top: 15px; right: 15px; z-index: 999;
+      background: rgba(255,255,255,0.95); backdrop-filter: blur(4px); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px;
+      box-shadow: var(--shadow-sm); font-size: 0.7rem; line-height: 1.8; min-width: 140px;
+    }
+    .zs-row { display: flex; justify-content: space-between; gap: 12px; }
+    .zs-key { color: var(--muted); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em;} 
+    .zs-val { color: var(--ink); font-weight: 600; }
+    .zoom-bar-wrap { margin-top: 8px; height: 4px; background: #e0e0e0; border-radius: 2px; overflow: hidden; }
+    .zoom-bar-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s ease-out; }
+
+    #phs-legend {
+      position: absolute; bottom: 35px; right: 15px; z-index: 999;
+      background: rgba(255,255,255,0.95); backdrop-filter: blur(4px); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px;
+      box-shadow: var(--shadow-md);
+      max-width: 220px; max-height: 300px; overflow-y: auto; display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    .leg-title { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    .leg-row { display: flex; align-items: center; gap: 8px; font-size: 0.7rem; margin-bottom: 6px; color: var(--ink); font-weight: 500; }
+    .leg-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); }
+    .leg-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+
+    #zoom-nudge {
+      position: absolute; bottom: 45px; left: 50%; transform: translateX(-50%);
+      background: rgba(26, 26, 26, 0.85); backdrop-filter: blur(4px); color: white;
+      font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500;
+      padding: 10px 20px; border-radius: 30px; white-space: nowrap; box-shadow: var(--shadow-md);
+      pointer-events: none; display: none; z-index: 999; transition: opacity 0.3s;
+    }
+
+    #detail-drawer { position: absolute; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid var(--border); max-height: 0; overflow: hidden; transition: max-height 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); z-index: 1000; box-shadow: 0 -10px 30px rgba(0,0,0,0.05); }
+    #detail-drawer.open { max-height: 350px; overflow-y: auto; }
+    .drawer-inner { padding: 20px 24px; max-width: 900px; margin: 0 auto; position: relative; }
+    .drawer-title { font-family: var(--font-serif); font-size: 1.2rem; font-weight: 600; margin-bottom: 4px; color: var(--ink); }
+    .drawer-sci { font-style: italic; color: var(--muted); font-size: 0.8rem; margin-bottom: 16px; }
+    
+    /* ── The Fixed 3-Column Drawer Grid ── */
+    .drawer-grid { 
+      display: grid; 
+      grid-template-columns: repeat(3, 1fr); 
+      gap: 16px 24px; 
+      font-size: 0.75rem; 
+      border-top: 1px solid #f0f0f0; 
+      padding-top: 16px; 
+    }
+    .dg-pair { display: flex; flex-direction: column; min-width: 0; }
+    .dg-key { color: var(--muted); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; } 
+    .dg-val { color: var(--ink); font-weight: 500; word-break: break-word; }
+    
+    .drawer-links { margin-top: 20px; display: flex; gap: 16px; flex-wrap: wrap; }
+    .drawer-link { display: inline-flex; align-items: center; gap: 6px; background: #f5f5f5; padding: 6px 12px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; transition: background 0.2s; }
+    .drawer-link:hover { background: #e0e0e0; text-decoration: none; }
+    .drawer-close { position: absolute; top: 16px; right: 20px; background: #f5f5f5; border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 1.1rem; color: var(--ink); display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+    .drawer-close:hover { background: #e0e0e0; }
+
+    /* ── Responsive adjustments for drawer ── */
+    @media (max-width: 768px) { .drawer-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .drawer-grid { grid-template-columns: 1fr; } }
+
+    /* ── Leaflet Popup Overrides ── */
+    .leaflet-popup-content-wrapper { font-family: var(--font-mono); border-radius: 12px; box-shadow: var(--shadow-md); padding: 0; overflow: hidden; }
+    .leaflet-popup-content { margin: 0; min-width: 240px; max-width: 290px; }
+    .leaflet-popup-close-button { top: 12px !important; right: 12px !important; color: var(--muted) !important; font-size: 1.2rem !important; }
+    .pu-inner { padding: 16px; }
+    .pu-title { font-family: var(--font-serif); font-size: 1rem; font-weight: 600; margin-bottom: 12px; padding-right: 16px; color: var(--ink); }
+    .pu-row { display: flex; gap: 10px; margin-bottom: 6px; align-items: baseline; font-size: 0.75rem; }
+    .pu-key { color: var(--muted); min-width: 70px; flex-shrink: 0; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .pu-val { color: var(--ink); font-weight: 500; word-break: break-word; }
+    .pu-btn { margin-top: 14px; width: 100%; padding: 10px; border: none; border-radius: 6px; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .pu-btn.select { background: var(--ink); color: white; }
+    .pu-btn.select:hover { background: var(--green); transform: translateY(-1px); }
+    .pu-btn.desel  { background: #f5f5f5; color: var(--accent); border: 1px solid var(--border); box-shadow: none; }
+    .pu-btn.desel:hover { background: #ffeeee; border-color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1><span>parcel</span> select → <em>wdfw phs +</em></h1>
+  <div class="hbadge">WA Parcels + Intersects</div>
+</header>
+
+<main>
+  <aside>
+    <div class="tabs">
+      <div class="tab active" data-tab="parcels">📦 Parcels</div>
+      <div class="tab" data-tab="phs">🌿 Results</div>
+    </div>
+
+    <div class="tab-panel active" id="tab-parcels">
+      
+      <div class="search-box">
+        <div class="sb-label">Keyword search</div>
+        <div class="sb-row">
+          <div class="search-wrap">
+            <input id="parcel-search-input" class="input-standard" type="text" placeholder="Address, parcel ID, city…" />
+            <button class="search-clear" id="search-clear-btn" aria-label="Clear search">✕</button>
+          </div>
+          <button id="parcel-search-btn" class="btn-standard">Go</button>
+        </div>
+      </div>
+
+      <div class="search-box" style="border-bottom:none;">
+        <div class="sb-label">GPS coordinates</div>
+        <div class="sb-row">
+          <div class="coord-inputs">
+            <input id="coord-lat" class="input-standard" type="text" placeholder="Lat (47.5…)" />
+            <input id="coord-lng" class="input-standard" type="text" placeholder="Lng (-120.5…)" />
+          </div>
+          <button id="coord-go-btn" class="btn-standard">Go</button>
+        </div>
+      </div>
+      
+      <div class="sel-summary">
+        <span id="sel-pill" class="sel-pill">0 selected</span>
+        <button id="zoom-sel-btn" class="btn-outline-green" title="Zoom to selected parcels" style="display:none;">⊕ Zoom to</button>
+        <button class="sel-clear" id="clear-sel-btn">Clear</button>
+      </div>
+      
+      <div id="parcel-info-card">
+        <button class="pic-dismiss" id="pic-dismiss" aria-label="Dismiss info card">✕</button>
+        <div class="pic-title" id="pic-title">—</div>
+        <div id="pic-fields"></div>
+      </div>
+      
+      <div id="parcel-list">
+        <div class="empty-state">
+          <div class="icon">🗺️</div>
+          Zoom in to see parcels,<br/>or search above.<br/>
+          <span style="font-size:0.65rem;color:var(--muted);display:block;margin-top:8px;">Loads at 1:200,000 or closer</span>
+        </div>
+      </div>
+      
+      <div class="query-bar">
+        <button id="query-phs-btn" disabled>
+          🌿 Query PHS & Overlays <span id="sel-badge">0</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-phs">
+      <div id="phs-action-bar" style="display:none;padding:10px 18px;border-bottom:1px solid var(--border);background:#fdfdfd;flex-shrink:0;align-items:center;gap:10px;">
+        <span id="phs-count-pill" style="background:var(--green);color:white;border-radius:12px;padding:3px 10px;font-size:0.65rem;font-weight:600;box-shadow:0 2px 4px rgba(43,122,75,0.2);">0 records</span>
+        <span style="font-size:0.65rem;color:var(--muted);font-weight:500;">Click item to map</span>
+        <button id="clear-phs-btn" class="sel-clear">Clear Results</button>
+      </div>
+      <div id="phs-results">
+        <div class="empty-state">
+          <div class="icon">🌿</div>
+          Select parcels and click<br/><strong>Query PHS & Overlays</strong>.
+        </div>
+      </div>
+    </div>
+
+    <div id="status-bar">
+      <div class="spinner"></div>
+      <span id="status-text">Loading map…</span>
+    </div>
+  </aside>
+
+  <div id="map-wrap">
+    <div id="map"></div>
+
+    <div id="layers-ctrl">
+      <button id="layers-toggle-btn">🗂 Layers &amp; Basemap ▾</button>
+      <div id="layers-panel">
+        <div class="lc-section-label">Overlay Layers</div>
+        
+        <div class="layer-row">
+          <input type="checkbox" id="lyr-sections" />
+          <span class="lr-swatch" style="background:#457b9d;border-radius:0"></span>
+          <span class="lr-name">PLS Sections</span>
+        </div>
+        <div class="opacity-row">Opacity <input type="range" id="op-sections" min="0" max="100" value="70" /></div>
+
+        <div class="layer-row">
+          <input type="checkbox" id="lyr-townships" />
+          <span class="lr-swatch" style="background:#6a4c93;border-radius:0"></span>
+          <span class="lr-name">PLS Townships</span>
+        </div>
+        <div class="opacity-row">Opacity <input type="range" id="op-townships" min="0" max="100" value="70" /></div>
+
+        <div class="layer-row">
+          <input type="checkbox" id="lyr-publiclands" />
+          <span class="lr-swatch" style="background:#52b788"></span>
+          <span class="lr-name">Major Public Lands</span>
+        </div>
+        <div class="opacity-row">Opacity <input type="range" id="op-publiclands" min="0" max="100" value="50" /></div>
+
+        <div class="layer-row">
+          <input type="checkbox" id="lyr-fphydro" />
+          <span class="lr-swatch" style="background:#457b9d"></span>
+          <span class="lr-name">Forest Practices Hydro</span>
+        </div>
+        <div class="opacity-row">Opacity <input type="range" id="op-fphydro" min="0" max="100" value="65" /></div>
+
+        <div class="layer-row">
+          <input type="checkbox" id="lyr-lidar" />
+          <span class="lr-swatch" style="background:#9e9890;border-radius:0"></span>
+          <span class="lr-name">Lidar Hillshade</span>
+        </div>
+        <div class="opacity-row">Opacity <input type="range" id="op-lidar" min="0" max="100" value="60" /></div>
+
+        <div class="lc-section-label">Basemap</div>
+        <div class="bm-options">
+          <button class="bm-btn active" data-url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" data-attr="© OpenStreetMap contributors">
+            <span class="bm-thumb" style="background:linear-gradient(135deg,#d4e8c8,#a8c890)"></span>Streets
+          </button>
+          <button class="bm-btn" data-url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" data-attr="© Esri, Maxar">
+            <span class="bm-thumb" style="background:linear-gradient(135deg,#405830,#203018)"></span>Satellite
+          </button>
+          <button class="bm-btn" data-url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}" data-attr="© Esri">
+            <span class="bm-thumb" style="background:linear-gradient(135deg,#c8d8b0,#90b870)"></span>Terrain
+          </button>
+          <button class="bm-btn" data-url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}" data-attr="© Esri">
+            <span class="bm-thumb" style="background:linear-gradient(135deg,#e8e0d4,#c8c0b0)"></span>Light Gray
+          </button>
+          <button class="bm-btn" data-url="https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png" data-attr="© Stadia Maps">
+            <span class="bm-thumb" style="background:linear-gradient(135deg,#303028,#181810)"></span>Dark
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="zoom-scale-ctrl">
+      <div class="zs-row"><span class="zs-key">Zoom</span><span class="zs-val" id="zs-zoom">7</span></div>
+      <div class="zs-row"><span class="zs-key">Scale</span><span class="zs-val" id="zs-scale">1 : —</span></div>
+      <div class="zoom-bar-wrap"><div class="zoom-bar-fill" id="zoom-bar" style="width:32%"></div></div>
+    </div>
+
+    <div id="phs-legend">
+      <div class="leg-title">Map Legend</div>
+      <div id="leg-items"></div>
+    </div>
+
+    <div id="zoom-nudge">🔍 Zoom in to 1 : 200,000 or closer to load parcels</div>
+
+    <div id="detail-drawer">
+      <button class="drawer-close" id="drawer-close" aria-label="Close details drawer">✕</button>
+      <div class="drawer-inner" id="drawer-content"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+  // ── 1. Constants & Configuration ──
+  const PARCEL_URL = 'https://services.arcgis.com/jsIt88o09Q0r1j8h/arcgis/rest/services/Current_Parcels/FeatureServer/0';
+  const WDFW_BASE  = 'https://geodataservices.wdfw.wa.gov/arcgis/rest/services/PHSOnTheWeb/PHSOnTheWebPublic/MapServer';
+  const PARCEL_SCALE = 200000;
+  
+  const WDFW_LAYERS = [
+    { id: 0, name: 'PHS Points' },
+    { id: 1, name: 'PHS Lines' },
+    { id: 2, name: 'PHS Poly Out.' },
+    { id: 3, name: 'PHS Polygons' },
+  ];
+
+  const EXTRA_QUERIES = [
+    { name: 'WDFW Habitat Contact', color: '#e76f51', url: 'https://geodataservices.wdfw.wa.gov/arcgis/rest/services/HP_Projects/HabitatProgramAreasOfResponsibilitiesGeoLib/MapServer/0' },
+    { name: 'DNR Hydro (Watercourses)', color: '#457b9d', url: 'https://gis.dnr.wa.gov/site2/rest/services/Public_Forest_Practices/WADNR_PUBLIC_FP_Hydro/MapServer/0' },
+    { name: 'DNR Hydro (Waterbodies)', color: '#457b9d', url: 'https://gis.dnr.wa.gov/site2/rest/services/Public_Forest_Practices/WADNR_PUBLIC_FP_Hydro/MapServer/1' },
+    { name: 'WA Public Lands', color: '#52b788', url: 'https://gis.dnr.wa.gov/site3/rest/services/Public_Boundaries/WADNR_PUBLIC_Major_Public_Lands_NonDNR/MapServer/0' }
+  ];
+  
+  const OCC_PALETTE = [
+    '#e63946','#f4a261','#2a9d8f','#6a4c93','#ffb703',
+    '#3a86ff','#06d6a0','#8338ec','#fb5607','#219ebc',
+    '#c77dff','#52b788','#f72585','#4cc9f0','#b5838d',
+    '#90be6d','#f9c74f','#43aa8b'
+  ];
+
+  // ── 2. Application State ──
+  let occColorMap = {}, occIndex = 0;
+  let selectedParcels = new Map();
+  let fetchTimer = null;
+  let parcelAbortController = null;
+  let activeOverlayAborts = { sections: null, townships: null };
+  let lastBbox = '';
+  let currentPopup = null;
+  let coordMarker = null;
+
+  // ── Helper: Case-Insensitive Attribute Extractor ──
+  function getAttr(attrs, possibleKeys) {
+      if (!attrs) return '';
+      const lowerKeys = Object.keys(attrs).reduce((acc, key) => {
+          acc[key.toLowerCase()] = key;
+          return acc;
+      }, {});
+      for (const pk of possibleKeys) {
+          const actualKey = lowerKeys[pk.toLowerCase()];
+          if (actualKey && attrs[actualKey] !== null && String(attrs[actualKey]).trim() !== '') {
+              return String(attrs[actualKey]).trim();
+          }
+      }
+      return '';
+  }
+
+  function occColor(name) {
+    if (!name) return '#888';
+    if (!occColorMap[name]) { occColorMap[name] = OCC_PALETTE[occIndex % OCC_PALETTE.length]; occIndex++; }
+    return occColorMap[name];
+  }
+
+  function getHydroColor(code) {
+    switch(String(code).toUpperCase()) {
+      case 'S': return '#03045e';
+      case 'F': return '#0077b6';
+      case 'N': return '#00b4d8';
+      case 'U': return '#90e0ef';
+      case '1': return '#03045e';
+      case '2': return '#0077b6';
+      case '3': return '#00b4d8';
+      case '4': return '#48cae4';
+      case '5': return '#90e0ef';
+      case '9': return '#caf0f8';
+      default:  return '#457b9d';
+    }
+  }
+
+  // ── 3. Map & Vector Overlay Initialization ──
+  const map = L.map('map', { center: [47.5, -120.5], zoom: 7, zoomControl: false });
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  L.control.scale({ imperial: true, metric: false, position: 'bottomleft' }).addTo(map);
+
+  let baseTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors', maxZoom: 19
+  }).addTo(map);
+
+  const styleElement = document.createElement('style');
+  styleElement.innerHTML = `
+    .pls-label {
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
+      color: #e63946 !important;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff, 0 1px 3px rgba(0,0,0,0.4);
+      white-space: nowrap;
+    }
+  `;
+  document.head.appendChild(styleElement);
+
+  const parcelLayer = L.geoJSON(null, { style: parcelStyle, onEachFeature: onEachParcel }).addTo(map);
+  const phsLayer = L.geoJSON(null, { style: phsStyle, pointToLayer: phsPoint }).addTo(map);
+  
+  const sectionsLayer = L.geoJSON(null).addTo(map);
+  const townshipsLayer = L.geoJSON(null).addTo(map);
+
+  const hlLayer = L.geoJSON(null, {
+    interactive: false,
+    style: { color: '#ffea00', weight: 6, fillOpacity: 0.2 },
+    pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 10, color: '#ffea00', weight: 4, fillOpacity: 0.2 })
+  }).addTo(map);
+
+  // ── 4. Image/Tile Overlay Configuration ──
+  L.TileLayer.ArcGIS = L.TileLayer.extend({
+    getTileUrl: function (coords) {
+      const tileSize = this.getTileSize();
+      const nwPoint = coords.scaleBy(tileSize);
+      const sePoint = nwPoint.add(tileSize);
+      const nw = this._map.unproject(nwPoint, coords.z);
+      const se = this._map.unproject(sePoint, coords.z);
+      const nw3857 = L.CRS.EPSG3857.project(nw);
+      const se3857 = L.CRS.EPSG3857.project(se);
+      const bbox = `${nw3857.x},${se3857.y},${se3857.x},${nw3857.y}`;
+      return L.Util.template(this._url, L.extend({ bbox: bbox }, this.options));
+    }
+  });
+  L.tileLayer.arcgis = function(url, options) { return new L.TileLayer.ArcGIS(url, options); };
+
+  const OVERLAY_CONFIGS = [
+    { id: 'publiclands', baseUrl: 'https://gis.dnr.wa.gov/site3/rest/services/Public_Boundaries/WADNR_PUBLIC_Major_Public_Lands_NonDNR/MapServer', layerId: 'all', attr: '© WA DNR', opacity: 0.50, on: false, type: 'export' },
+    { id: 'fphydro', baseUrl: 'https://gis.dnr.wa.gov/site2/rest/services/Public_Forest_Practices/WADNR_PUBLIC_FP_Hydro/MapServer', layerId: 'all', attr: '© WA DNR', opacity: 0.65, on: false, type: 'export' },
+    { id: 'lidar', baseUrl: 'https://gis.dnr.wa.gov/site1/rest/services/Public_Geology/Lidar_Hillshade/MapServer', layerId: 'all', attr: '© WA DNR', opacity: 0.60, on: false, type: 'export' }
+  ];
+
+  const overlayLayers = {};
+  OVERLAY_CONFIGS.forEach(cfg => {
+    let tile;
+    if (cfg.type === 'export') {
+      const layerQuery = cfg.layerId === 'all' ? '' : `&layers=show:${cfg.layerId}`;
+      const exportUrl = `${cfg.baseUrl}/export?bbox={bbox}&bboxSR=3857${layerQuery}&size=256,256&imageSR=3857&format=png&transparent=true&f=image`;
+      tile = L.tileLayer.arcgis(exportUrl, { attribution: cfg.attr, opacity: cfg.opacity, maxZoom: 19 });
+    } else {
+      tile = L.tileLayer(cfg.url, { attribution: cfg.attr, opacity: cfg.opacity, maxZoom: 19 });
+    }
+    
+    overlayLayers[cfg.id] = tile;
+    if (cfg.on) tile.addTo(map);
+
+    const cb = document.getElementById(`lyr-${cfg.id}`);
+    if (cb) cb.addEventListener('change', () => cb.checked ? tile.addTo(map) : map.removeLayer(tile));
+
+    const slider = document.getElementById(`op-${cfg.id}`);
+    if (slider) {
+      let opTimer;
+      slider.addEventListener('input', () => {
+        clearTimeout(opTimer);
+        opTimer = setTimeout(() => tile.setOpacity(slider.value / 100), 50);
+      });
+    }
+  });
+
+  // ── 5. Core View State Controller & Dynamic PLS Loaders ──
+  function updateAllMapViews() {
+    updateZoomScale();
+    if (document.getElementById('lyr-sections').checked) fetchVectorOverlay('sections', 7, sectionsLayer);
+    if (document.getElementById('lyr-townships').checked) fetchVectorOverlay('townships', 8, townshipsLayer);
+  }
+
+  async function fetchVectorOverlay(id, layerId, leafletLayer) {
+    if (!map.hasLayer(leafletLayer)) return;
+
+    // Calculate real-time visual scale threshold boundary
+    const z = map.getZoom();
+    const lat = map.getCenter().lat;
+    const mPerPx = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z);
+    const scale = Math.round(mPerPx * 96 / 0.0254);
+    
+    // Strict threshold parameter check: Turn on labels/features strictly at 1:100,000 or closer
+    if (scale > 100000) { 
+        leafletLayer.clearLayers(); 
+        return; 
+    }
+
+    if (activeOverlayAborts[id]) activeOverlayAborts[id].abort();
+    activeOverlayAborts[id] = new AbortController();
+
+    const b = map.getBounds();
+    const geomParam = encodeURIComponent(JSON.stringify({
+      xmin: b.getWest(), ymin: b.getSouth(), xmax: b.getEast(), ymax: b.getNorth(), spatialReference: { wkid: 4326 }
+    }));
+    
+    const url = `https://gis.dnr.wa.gov/site3/rest/services/Public_Boundaries/WADNR_PUBLIC_Cadastre_OpenData/MapServer/${layerId}/query?geometry=${geomParam}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&outSR=4326&f=geojson&resultRecordCount=250`;
+    
+    try {
+      const res = await fetch(url, { signal: activeOverlayAborts[id].signal });
+      const data = await res.json();
+      
+      leafletLayer.clearLayers();
+      const seenLabels = new Set();
+      const sliderVal = document.getElementById(`op-${id}`)?.value || 70;
+
+      leafletLayer.addData(data);
+      
+      leafletLayer.eachLayer(layer => {
+        const props = layer.feature.properties || {};
+        const labelText = getAttr(props, ['LEGAL_DESC_LABEL_NM']);
+        
+        layer.setStyle({
+           color: '#e63946',
+           weight: layerId === 7 ? 1.3 : 2.5,
+           fill: false,
+           opacity: sliderVal / 100
+        });
+
+        if (labelText && !seenLabels.has(labelText)) {
+          seenLabels.add(labelText);
+          layer.bindTooltip(labelText, {
+            permanent: true,
+            direction: 'center',
+            className: 'pls-label'
+          });
+        }
+      });
+    } catch(e) {
+      if (e.name !== 'AbortError') console.warn(`Vector overlay fetch intercept failed:`, e);
+    }
+  }
+
+  function updateZoomScale() {
+    const z = map.getZoom();
+    const lat = map.getCenter().lat;
+    const mPerPx = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z);
+    const scale = Math.round(mPerPx * 96 / 0.0254);
+    
+    document.getElementById('zs-zoom').textContent = z;
+    document.getElementById('zs-scale').textContent = `1 : ${scale.toLocaleString()}`;
+    document.getElementById('zoom-bar').style.width = `${Math.min(100, (z / 18) * 100)}%`;
+
+    const nudge = document.getElementById('zoom-nudge');
+    if (scale > PARCEL_SCALE) {
+      nudge.style.display = 'block';
+      parcelLayer.clearLayers();
+      showListEmpty('Zoom in to 1:200,000 or closer to see clickable parcels,<br/>or use the search box above.');
+      lastBbox = '';
+    } else {
+      nudge.style.display = 'none';
+      clearTimeout(fetchTimer);
+      fetchTimer = setTimeout(fetchParcelsForView, 350);
+    }
+  }
+
+  async function fetchParcelsForView() {
+    const b = map.getBounds();
+    const r = v => Math.round(v * 10000) / 10000;
+    const bbox = `${r(b.getWest())},${r(b.getSouth())},${r(b.getEast())},${r(b.getNorth())}`;
+    
+    if (bbox === lastBbox) return;
+    lastBbox = bbox;
+    
+    if (parcelAbortController) parcelAbortController.abort();
+    parcelAbortController = new AbortController();
+
+    setStatus('Loading parcels…', 'loading');
+    
+    try {
+      const geomParam = encodeURIComponent(JSON.stringify({
+        xmin: b.getWest(), ymin: b.getSouth(), xmax: b.getEast(), ymax: b.getNorth(), spatialReference: { wkid: 4326 }
+      }));
+      const url = `${PARCEL_URL}/query?geometry=${geomParam}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&outSR=4326&f=geojson&resultRecordCount=500`;
+      
+      const res = await fetch(url, { signal: parcelAbortController.signal });
+      const data = await res.json();
+      
+      if (data.error) throw new Error(data.error.message);
+      
+      const features = data.features || [];
+      parcelLayer.clearLayers();
+      parcelLayer.addData(data);
+      renderParcelList(features);
+      setStatus(`${features.length} parcels loaded.`, 'success');
+    } catch(e) { 
+      if (e.name !== 'AbortError') setStatus(`Failed: ${e.message}`, 'error'); 
+    }
+  }
+
+  async function searchParcels() {
+    const val = document.getElementById('parcel-search-input').value.trim();
+    if (!val) return;
+    
+    const safeVal = val.replace(/'/g, "''").toUpperCase();
+    if (parcelAbortController) parcelAbortController.abort();
+    setStatus('Searching parcels...', 'loading');
+    
+    const fields = ['ORIG_PARCEL_ID','PARCEL_ID_NR','SITUS_ADDRESSS','SITUS_ADDRESS','SITUS_CITY_NM','OWNER_NM','OWNER_NAME'];
+    const where = fields.map(f => `UPPER(${f}) LIKE '%${safeVal}%'`).join(' OR ');
+    
+    try {
+      const url = `${PARCEL_URL}/query?where=${encodeURIComponent(where)}&outFields=*&outSR=4326&f=geojson&resultRecordCount=100`;
+      const res = await fetch(url);
+      const data = await res.json();
+      
+      if (data.error) throw new Error(data.error.message);
+      
+      const features = data.features || [];
+      if (!features.length) {
+          setStatus('No parcels found matching search.', 'error');
+          return;
+      }
+      
+      parcelLayer.clearLayers();
+      parcelLayer.addData(data);
+      map.fitBounds(parcelLayer.getBounds(), { padding: [50, 50], maxZoom: 17 });
+      
+      renderParcelList(features);
+      setStatus(`Found ${features.length} parcel(s).`, 'success');
+    } catch(e) {
+      setStatus(`Search failed: ${e.message}`, 'error');
+    }
+  }
+
+  function parcelStyle(feature) {
+    const oid = feature.properties?.OBJECTID ?? feature.properties?.objectid;
+    return selectedParcels.has(oid)
+      ? { color: '#2b7a4b', weight: 2.5, fillColor: '#2b7a4b', fillOpacity: 0.35 }
+      : { color: '#4a90d9', weight: 1.2, fillColor: '#000', fillOpacity: 0 };
+  }
+
+  function onEachParcel(feature, layer) {
+    layer.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      onParcelClick(feature, e.latlng);
+    });
+    layer.on('mouseover', () => { layer.getElement && (map.getContainer().style.cursor = 'pointer'); });
+    layer.on('mouseout', () => { map.getContainer().style.cursor = ''; });
+  }
+
+  function refreshParcelStyles() {
+    parcelLayer.eachLayer(l => l.setStyle && l.setStyle(parcelStyle(l.feature)));
+  }
+
+  function toggleParcel(oid, feature) {
+    if (selectedParcels.has(oid)) selectedParcels.delete(oid);
+    else selectedParcels.set(oid, feature);
+    
+    updateSelCount();
+    refreshParcelStyles();
+
+    const listEl = document.querySelector(`.parcel-item[data-oid="${oid}"]`);
+    if (listEl) {
+      const isSel = selectedParcels.has(oid);
+      listEl.classList.toggle('selected', isSel);
+      listEl.querySelector('.p-check').textContent = isSel ? '✓' : '';
+    }
+  }
+
+  function updateSelCount() {
+    const n = selectedParcels.size;
+    document.getElementById('sel-pill').textContent = `${n} selected`;
+    document.getElementById('sel-badge').textContent = n;
+    document.getElementById('query-phs-btn').disabled = n === 0;
+    document.getElementById('zoom-sel-btn').style.display = n > 0 ? 'inline-block' : 'none';
+  }
+
+  function formatArea(sqFt) {
+      if (!sqFt) return '';
+      const acres = sqFt / 43560;
+      if (acres > 0.1) return acres.toFixed(2) + ' acres';
+      return Math.round(sqFt).toLocaleString() + ' sq ft';
+  }
+
+  function onParcelClick(feature, latlng) {
+    if (currentPopup) { map.closePopup(currentPopup); currentPopup = null; }
+
+    const props = feature.properties || {};
+    const oid = props['OBJECTID'] ?? props['objectid'];
+    const parcelId = props['ORIG_PARCEL_ID'] || props['Orig_Parcel_ID'] || props['PARCEL_ID_NR'] || `OID: ${oid}`;
+    const address = props['SITUS_ADDRESSS'] || props['SITUS_ADDRESS'] || '';
+    const city = props['SITUS_CITY_NM'] || '';
+    const areaStr = formatArea(parseFloat(props['Shape__Area'] || 0));
+    const extLink = props['DATA_LINK'] || '';
+    const parcelNr = props['PARCEL_ID_NR'] || '';
+    const isSel = selectedParcels.has(oid);
+
+    const fields = [['Parcel Nr', parcelNr], ['Address', address], ['City', city], ['Area', areaStr]].filter(([,v]) => v);
+    const rows = fields.map(([k,v]) => `<div class="pu-row"><span class="pu-key">${k}</span><span class="pu-val">${v}</span></div>`).join('');
+    const linkRow = extLink ? `<div class="pu-row"><span class="pu-key">Link</span><span class="pu-val"><a class="pu-link" href="${extLink}" target="_blank">Open Source ↗</a></span></div>` : '';
+    const btnId = `pu-btn-${oid}`;
+
+    const html = `<div class="pu-inner">
+      <div class="pu-title">${parcelId}</div>
+      ${rows}${linkRow}
+      <button class="pu-btn ${isSel ? 'desel' : 'select'}" id="${btnId}">
+        ${isSel ? '✓ Deselect parcel' : '+ Select parcel'}
+      </button>
+    </div>`;
+
+    currentPopup = L.popup({ maxWidth: 300, closeButton: true }).setLatLng(latlng).setContent(html).openOn(map);
+
+    setTimeout(() => {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        toggleParcel(oid, feature);
+        const nowSel = selectedParcels.has(oid);
+        btn.textContent = nowSel ? '✓ Deselect parcel' : '+ Select parcel';
+        btn.className = `pu-btn ${nowSel ? 'desel' : 'select'}`;
+      });
+    }, 40);
+
+    document.getElementById('pic-title').textContent = parcelId;
+    document.getElementById('pic-fields').innerHTML = fields.concat([['Link', extLink]]).filter(([,v]) => v).map(([k,v]) => {
+      const val = k === 'Link' ? `<a class="pic-link" href="${v}" target="_blank">Open Source ↗</a>` : v;
+      return `<div class="pic-row"><span class="pic-key">${k}</span><span class="pic-val">${val}</span></div>`;
+    }).join('');
+    document.getElementById('parcel-info-card').classList.add('visible');
+  }
+
+  // ── 6. Query and Spatial Intersects ──
+  async function queryPHS() {
+    if (!selectedParcels.size) return;
+    document.querySelector('[data-tab="phs"]').click();
+    document.getElementById('phs-results').innerHTML = `<div class="empty-state"><div class="icon">⏳</div>Querying Data…</div>`;
+    setStatus(`Querying Spatial Intersects for ${selectedParcels.size} parcel(s)…`, 'loading');
+
+    hlLayer.clearLayers();
+
+    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+    selectedParcels.forEach(f => {
+      const geom = f.geometry; if (!geom) return;
+      const coords = geom.type === 'Polygon' ? geom.coordinates[0]
+        : geom.type === 'MultiPolygon' ? geom.coordinates.flat(2)
+        : geom.type === 'Point' ? [geom.coordinates] : [];
+      coords.forEach(([x,y]) => { minX=Math.min(minX,x); minY=Math.min(minY,y); maxX=Math.max(maxX,x); maxY=Math.max(maxY,y); });
+    });
+
+    occColorMap = {}; occIndex = 0;
+    const phsResults = [];
+    const extraResults = [];
+
+    const geomParam = encodeURIComponent(JSON.stringify({ xmin:minX,ymin:minY,xmax:maxX,ymax:maxY, spatialReference:{wkid:4326} }));
+    const fetchPromises = [];
+
+    try {
+      WDFW_LAYERS.forEach(layer => {
+        const url = `${WDFW_BASE}/${layer.id}/query?geometry=${geomParam}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&outSR=4326&f=json&resultRecordCount=200`;
+        const p = fetch(url).then(r => r.json()).then(data => {
+          if (data.features) data.features.forEach(feat => phsResults.push({...feat, _layer: layer}));
+        }).catch(e => console.warn('WDFW layer fail:', e));
+        fetchPromises.push(p);
+      });
+
+      EXTRA_QUERIES.forEach(extra => {
+        const url = `${extra.url}/query?geometry=${geomParam}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&outSR=4326&f=json&resultRecordCount=100`;
+        const p = fetch(url).then(r => r.json()).then(data => {
+          if (data.features) {
+            data.features.forEach(feat => {
+               const attrs = feat.attributes || {};
+               
+               // Target string updated to match "WDFW Habitat Contact" parameters
+               if (extra.name === 'WDFW Habitat Contact') {
+                   const role = getAttr(attrs, ['rolecode', 'role', 'title']).toUpperCase();
+                   if (role !== 'ARHPM' && role !== 'BIO') return;
+               }
+               
+               let featColor = extra.color;
+               if (extra.name.includes('Hydro')) {
+                   const waterCode = getAttr(attrs, ['fp_wtrty_cd']);
+                   featColor = getHydroColor(waterCode);
+               }
+
+               extraResults.push({...feat, _isExtra: true, _extraName: extra.name, _color: featColor });
+            });
+          }
+        }).catch(e => console.warn('Extra query fail:', e));
+        fetchPromises.push(p);
+      });
+
+      await Promise.all(fetchPromises);
+
+      const combined = [...phsResults, ...extraResults];
+      combined.forEach((r, i) => r._uid = i); 
+
+      if (!combined.length) {
+        setStatus('No spatial intersects found.', '');
+        document.getElementById('phs-results').innerHTML = `<div class="empty-state"><div class="icon">✅</div>No PHS or extra data found<br/>for selected parcel(s).</div>`;
+        phsLayer.clearLayers();
+        document.getElementById('phs-legend').style.display = 'none';
+        return;
+      }
+
+      phsResults.forEach(r => {
+          const occName = getAttr(r.attributes, ['occurrence_name']) || 'Unknown';
+          occColor(occName);
+      });
+      
+      renderPHSResults(phsResults, extraResults, combined);
+      drawPHSOnMap(combined);
+      buildLegend(extraResults);
+      setStatus(`Found ${phsResults.length} PHS & ${extraResults.length} extra record(s).`, 'success');
+    } catch(e) {
+      setStatus('Error querying APIs.', 'error');
+      document.getElementById('phs-results').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>Failed to query spatial APIs.</div>`;
+    }
+  }
+
+  function renderParcelList(features) {
+    const list = document.getElementById('parcel-list');
+    if (!features || !features.length) { showListEmpty('No parcels found in this area.'); return; }
+    list.innerHTML = features.map(f => {
+      const props = f.properties || {};
+      const oid = props.OBJECTID || props.objectid;
+      const pid = props['ORIG_PARCEL_ID'] || props['Orig_Parcel_ID'] || props['PARCEL_ID_NR'] || `OID: ${oid}`;
+      const owner = props.OWNER_NM || props.OWNER_NAME || 'Unknown Owner';
+      const isSel = selectedParcels.has(oid);
+      return `
+        <div class="parcel-item ${isSel ? 'selected' : ''}" data-oid="${oid}">
+          <div class="p-check">${isSel ? '✓' : ''}</div>
+          <div class="p-info">
+            <div class="p-main">${pid}</div>
+            <div class="p-sub">${owner}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    document.querySelectorAll('.parcel-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const oid = parseInt(item.dataset.oid, 10);
+        const feature = features.find(f => (f.properties.OBJECTID || f.properties.objectid) === oid);
+        if (feature) {
+          const layer = L.geoJSON(feature);
+          map.fitBounds(layer.getBounds(), { padding: [50, 50], maxZoom: 16 });
+          onParcelClick(feature, layer.getBounds().getCenter());
+        }
+      });
+    });
+  }
+
+  function renderPHSResults(phsResults, extraResults, combined) {
+    const container = document.getElementById('phs-results');
+    let html = '';
+    const grouped = {};
+
+    phsResults.forEach(r => {
+      const name = getAttr(r.attributes, ['occurrence_name']) || 'Unknown Species/Habitat';
+      if (!grouped[name]) grouped[name] = { items: [], color: occColor(name) };
+      grouped[name].items.push(r);
+    });
+
+    extraResults.forEach(r => {
+      const groupName = r._extraName;
+      if (!grouped[groupName]) grouped[groupName] = { items: [], color: r._color };
+      grouped[groupName].items.push(r);
+    });
+
+    for (const [groupName, groupData] of Object.entries(grouped)) {
+      
+      // Perform strict custom sorting block when handling the Contact accordion channel
+      if (groupName === 'WDFW Habitat Contact') {
+          groupData.items.sort((a, b) => {
+              const rA = getAttr(a.attributes, ['rolecode', 'role', 'title']).toUpperCase();
+              const rB = getAttr(b.attributes, ['rolecode', 'role', 'title']).toUpperCase();
+              if (rA === 'BIO' && rB !== 'BIO') return -1;
+              if (rA !== 'BIO' && rB === 'BIO') return 1;
+              return rA.localeCompare(rB);
+          });
+      }
+
+      html += `
+        <div class="acc-group">
+          <div class="acc-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="acc-dot" style="background:${groupData.color}"></div>
+            <div class="acc-name">${groupName}</div>
+            <div class="acc-count">${groupData.items.length}</div>
+            <div class="acc-chevron">▶</div>
+          </div>
+          <div class="acc-body">`;
+          
+      groupData.items.forEach(item => {
+        const attrs = item.attributes || {};
+        let mainTitle = groupName;
+        let subTitle = item._layer ? item._layer.name : 'Spatial Intersect';
+        let sciName = getAttr(attrs, ['scientific_name']) || '';
+
+        if (item._extraName === 'WDFW Habitat Contact') {
+           const cName = getAttr(attrs, ['name', 'staffname', 'contactname', 'staff', 'contact', 'biologist']) || 'Unknown Name';
+           const cRole = getAttr(attrs, ['rolecode', 'role', 'title']);
+           const cPhone = getAttr(attrs, ['phone', 'phonenumber', 'telephone']);
+           const cEmail = getAttr(attrs, ['email', 'emailaddress']);
+           
+           // Swapped layout schema: Role code is pinned first, followed by name string
+           mainTitle = [cRole, cName].filter(Boolean).join(' • ');
+           subTitle = [cPhone, cEmail].filter(Boolean).join(' • ') || 'Habitat Contact';
+           
+        } else if (item._extraName?.includes('DNR Hydro')) {
+           const gnis = getAttr(attrs, ['wc_gnis_nm', 'wb_gnis_nm', 'fp_wtrty_nm']) || 'Unnamed Water Feature';
+           const typeCode = getAttr(attrs, ['fp_wtrty_cd']) || '?';
+           const typeName = getAttr(attrs, ['fp_wtrty_nm']) || '';
+           mainTitle = gnis;
+           subTitle = `Type ${typeCode} Water ${typeName ? '('+typeName+')' : ''}`;
+           
+        } else if (item._extraName === 'WA Public Lands') {
+           mainTitle = getAttr(attrs, ['manager']) || 'Unknown Manager';
+           subTitle = getAttr(attrs, ['name']) || '';
+           
+        } else {
+           mainTitle = getAttr(attrs, ['occurrence_name']) || 'Unknown';
+           const pDesc = getAttr(attrs, ['priorityarea_desc']) || '';
+           const sName = getAttr(attrs, ['site_name']) || '';
+           const extraStr = [pDesc, sName].filter(Boolean).join(' - ');
+           subTitle = extraStr ? (item._layer.name + ': ' + extraStr) : item._layer.name;
+        }
+
+        html += `
+          <div class="phs-item" data-uid="${item._uid}">
+            <div class="phs-body">
+              <div class="p-main" ${item._isExtra ? `style="color:${item._color}"` : ''}>${mainTitle}</div>
+              ${sciName ? `<div class="phs-sci">${sciName}</div>` : ''}
+              <div class="p-sub">${subTitle}</div>
+            </div>
+          </div>`;
+      });
+      html += `</div></div>`;
+    }
+
+    container.innerHTML = html;
+    document.getElementById('phs-action-bar').style.display = 'flex';
+    document.getElementById('phs-count-pill').textContent = `${combined.length} records`;
+
+    document.querySelectorAll('.phs-item').forEach(item => {
+      item.addEventListener('click', () => {
+         const uid = parseInt(item.dataset.uid, 10);
+         const feature = combined.find(r => r._uid === uid);
+         if(feature) {
+           hlLayer.clearLayers();
+           const geoJson = esriToGeoJSON(feature);
+           if(geoJson.geometry) hlLayer.addData(geoJson);
+           
+           let drawerTitle = feature._isExtra ? feature._extraName : (getAttr(feature.attributes, ['occurrence_name']) || 'Unknown');
+           
+           if (feature._extraName === 'WDFW Habitat Contact') {
+               const cName = getAttr(feature.attributes, ['name', 'staffname', 'contactname', 'staff', 'contact']);
+               if (cName) drawerTitle = cName + ' (Habitat Contact)';
+           } else if (feature._extraName?.includes('DNR Hydro')) {
+               drawerTitle = getAttr(feature.attributes, ['wc_gnis_nm', 'wb_gnis_nm', 'fp_wtrty_nm']) || 'Unnamed Water Feature';
+           } else if (feature._extraName === 'WA Public Lands') {
+               drawerTitle = getAttr(feature.attributes, ['manager']) || 'WA Public Lands';
+           }
+
+           openDrawer(feature, drawerTitle, feature._color);
+         }
+      });
+    });
+  }
+
+  function openDrawer(feature, name, overrideColor) {
+    const attrs = feature.attributes || {};
+    const color = overrideColor || occColor(name);
+    
+    const priorityKeys = ['fp_wtrty_cd', 'fp_wtrty_nm', 'wc_gnis_nm', 'wb_gnis_nm'];
+    let gridHtml = '';
+    
+    priorityKeys.forEach(k => {
+        const val = getAttr(attrs, [k]);
+        if (val) {
+            gridHtml += `<div class="dg-pair"><div class="dg-key">${k}</div><div class="dg-val">${val}</div></div>`;
+        }
+    });
+    
+    const skipFieldsLower = ['objectid','occurrence_name','scientific_name','more_info_url','mgmt_recs_url','shape','shape.starea()','shape.stlength()', ...priorityKeys];
+    
+    gridHtml += Object.entries(attrs)
+      .filter(([k,v]) => v !== null && String(v).trim() !== '' && !skipFieldsLower.includes(k.toLowerCase()) && !k.startsWith('_'))
+      .map(([k,v]) => `<div class="dg-pair"><div class="dg-key">${k}</div><div class="dg-val">${v}</div></div>`)
+      .join('');
+
+    const sciName = getAttr(attrs, ['scientific_name']);
+    const moreInfo = getAttr(attrs, ['more_info_url']);
+    const mgmtRecs = getAttr(attrs, ['mgmt_recs_url']);
+
+    document.getElementById('drawer-content').innerHTML = `
+      <div class="drawer-title" style="border-left: 4px solid ${color};padding-left:12px">${name}</div>
+      ${sciName ? `<div class="drawer-sci" style="padding-left:16px">${sciName}</div>` : ''}
+      <div class="drawer-grid">${gridHtml || '<div style="color:var(--muted)">No additional data.</div>'}</div>
+      <div class="drawer-links">
+        ${moreInfo ? `<a class="drawer-link" href="${moreInfo}" target="_blank">View More Info ↗</a>` : ''}
+        ${mgmtRecs ? `<a class="drawer-link" href="${mgmtRecs}" target="_blank">Management Recs ↗</a>` : ''}
+      </div>`;
+    document.getElementById('detail-drawer').classList.add('open');
+  }
+
+  function esriToGeoJSON(esriFeature) {
+    const geom = esriFeature.geometry;
+    let type = "Point";
+    let coordinates = [];
+    if (geom) {
+      if (geom.x !== undefined && geom.y !== undefined) { type = "Point"; coordinates = [geom.x, geom.y]; } 
+      else if (geom.paths) { type = "MultiLineString"; coordinates = geom.paths; } 
+      else if (geom.rings) { type = "Polygon"; coordinates = geom.rings; }
+    }
+    const props = { ...esriFeature.attributes, _isExtra: esriFeature._isExtra, _color: esriFeature._color, _extraName: esriFeature._extraName };
+    return { type: "Feature", properties: props, geometry: geom ? { type, coordinates } : null };
+  }
+
+  function drawPHSOnMap(results) {
+    phsLayer.clearLayers();
+    const geojsonFeatures = results.map(r => esriToGeoJSON(r)).filter(f => f.geometry);
+    phsLayer.addData(geojsonFeatures);
+    
+    if (geojsonFeatures.length) {
+      map.setZoom(map.getZoom() - 1);
+    }
+  }
+
+  function phsStyle(feature) {
+    if (feature.properties?._isExtra) {
+      // Applied strictly to remove the fill entirely from the Habitat polygon features
+      if (feature.properties._extraName === 'WDFW Habitat Contact') {
+          return { color: feature.properties._color, weight: 3, opacity: 0.9, fill: false, fillOpacity: 0 };
+      }
+      return { color: feature.properties._color, weight: 3, opacity: 0.9, fillColor: feature.properties._color, fillOpacity: 0.25 };
+    }
+    const name = getAttr(feature.properties, ['occurrence_name']);
+    return { color: occColor(name), weight: 2.5, opacity: 0.9, fillColor: occColor(name), fillOpacity: 0.35 };
+  }
+
+  function phsPoint(feature, latlng) {
+    const occName = getAttr(feature.properties, ['occurrence_name']);
+    const color = feature.properties?._isExtra ? feature.properties._color : occColor(occName);
+    return L.circleMarker(latlng, { radius: 6, fillColor: color, color: '#fff', weight: 1.5, fillOpacity: 0.9 });
+  }
+
+  // ── 7. Global Event Listeners ──
+  document.addEventListener('DOMContentLoaded', () => {
+    
+    map.on('zoomend moveend', updateAllMapViews);
+    updateZoomScale();
+
+    document.getElementById('query-phs-btn').addEventListener('click', queryPHS);
+
+    // Keyword Search Bindings
+    document.getElementById('parcel-search-btn').addEventListener('click', searchParcels);
+    document.getElementById('parcel-search-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') searchParcels();
+    });
+    document.getElementById('parcel-search-input').addEventListener('input', (e) => {
+        const clearBtn = document.getElementById('search-clear-btn');
+        if (e.target.value.trim().length > 0) clearBtn.classList.add('visible');
+        else clearBtn.classList.remove('visible');
+    });
+    document.getElementById('search-clear-btn').addEventListener('click', () => {
+        document.getElementById('parcel-search-input').value = '';
+        document.getElementById('search-clear-btn').classList.remove('visible');
+        parcelLayer.clearLayers();
+        selectedParcels.clear();
+        updateSelCount();
+        showListEmpty('Zoom in to see parcels,<br/>or search above.');
+    });
+
+    // GPS Search Bindings
+    document.getElementById('coord-go-btn').addEventListener('click', () => {
+       const latInput = document.getElementById('coord-lat');
+       const lngInput = document.getElementById('coord-lng');
+       let lat = parseFloat(latInput.value);
+       let lng = parseFloat(lngInput.value);
+
+       if (latInput.value.includes(',')) {
+           const parts = latInput.value.split(',');
+           lat = parseFloat(parts[0].trim());
+           lng = parseFloat(parts[1].trim());
+           latInput.value = lat;
+           lngInput.value = lng;
+       }
+
+       if (isNaN(lat) || isNaN(lng)) {
+           setStatus('Invalid coordinates.', 'error');
+           return;
+       }
+
+       map.setView([lat, lng], 17);
+       
+       if (coordMarker) map.removeLayer(coordMarker);
+       coordMarker = L.marker([lat, lng]).addTo(map);
+       coordMarker.bindPopup(`<b>Searched Location</b><br>${lat}, ${lng}`).openPopup();
+       
+       setStatus(`Zoomed to ${lat}, ${lng}`, 'success');
+    });
+
+    // Client-Side Vector Toggle Engine
+    document.getElementById('lyr-sections').addEventListener('change', (e) => {
+        if (e.target.checked) {
+            sectionsLayer.addTo(map);
+            fetchVectorOverlay('sections', 7, sectionsLayer);
+        } else {
+            map.removeLayer(sectionsLayer);
+        }
+    });
+
+    document.getElementById('lyr-townships').addEventListener('change', (e) => {
+        if (e.target.checked) {
+            townshipsLayer.addTo(map);
+            fetchVectorOverlay('townships', 8, townshipsLayer);
+        } else {
+            map.removeLayer(townshipsLayer);
+        }
+    });
+
+    // Dynamic Opacity Sliders
+    document.getElementById('op-sections').addEventListener('input', (e) => {
+        sectionsLayer.setStyle({ opacity: e.target.value / 100 });
+    });
+    document.getElementById('op-townships').addEventListener('input', (e) => {
+        townshipsLayer.setStyle({ opacity: e.target.value / 100 });
+    });
+
+    document.getElementById('layers-toggle-btn').addEventListener('click', (e) => {
+      document.getElementById('layers-panel').classList.toggle('open');
+      e.stopPropagation();
+    });
+    map.on('click', () => document.getElementById('layers-panel').classList.remove('open'));
+
+    document.querySelectorAll('.bm-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.bm-btn').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        const url = e.currentTarget.dataset.url;
+        const attr = e.currentTarget.dataset.attr;
+        
+        map.removeLayer(baseTile);
+        baseTile = L.tileLayer(url, { attribution: attr, maxZoom: 19 }).addTo(map);
+        baseTile.bringToBack();
+      });
+    });
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+      });
+    });
+
+    document.getElementById('drawer-close')?.addEventListener('click', () => { 
+      document.getElementById('detail-drawer').classList.remove('open'); 
+      hlLayer.clearLayers();
+    });
+    
+    document.getElementById('pic-dismiss')?.addEventListener('click', () => {
+      document.getElementById('parcel-info-card').classList.remove('visible');
+    });
+
+    document.getElementById('clear-sel-btn')?.addEventListener('click', () => {
+      selectedParcels.clear();
+      updateSelCount();
+      refreshParcelStyles();
+      document.querySelectorAll('.parcel-item').forEach(item => {
+        item.classList.remove('selected');
+        item.querySelector('.p-check').textContent = '';
+      });
+      document.getElementById('parcel-info-card').classList.remove('visible');
+      if(currentPopup) map.closePopup(currentPopup);
+    });
+
+    document.getElementById('clear-phs-btn')?.addEventListener('click', () => {
+      phsLayer.clearLayers();
+      hlLayer.clearLayers();
+      document.getElementById('phs-results').innerHTML = `<div class="empty-state"><div class="icon">🌿</div>Select parcels and click<br/><strong>Query PHS & Overlays</strong>.</div>`;
+      document.getElementById('phs-action-bar').style.display = 'none';
+      document.getElementById('phs-legend').style.display = 'none';
+      document.getElementById('detail-drawer').classList.remove('open');
+    });
+
+    document.getElementById('zoom-sel-btn')?.addEventListener('click', () => {
+      if(!selectedParcels.size) return;
+      const bounds = L.latLngBounds();
+      selectedParcels.forEach(f => {
+        const layer = L.geoJSON(f);
+        bounds.extend(layer.getBounds());
+      });
+      map.fitBounds(bounds, { padding: [50, 50] });
+    });
+  });
+</script>
+</body>
+</html>
