@@ -288,8 +288,8 @@
 <body>
 
 <header>
-  <h1><span>Ken's</span> PHS <em> Engine</em></h1>
-  <div class="hbadge">WDFW PHS</div>
+  <h1><span>Ken's</span> habitat <em> Engine</em></h1>
+  <div class="hbadge"> habitat</div>
 </header>
 
 <main>
@@ -468,7 +468,7 @@
   ];
 
   const EXTRA_QUERIES = [
-    { name: 'WDFW Habitat Program', color: '#e76f51', url: 'https://geodataservices.wdfw.wa.gov/arcgis/rest/services/HP_Projects/HabitatProgramAreasOfResponsibilitiesGeoLib/MapServer/0' },
+    { name: 'Habitat Program', color: '#e76f51', url: 'https://geodataservices.wdfw.wa.gov/arcgis/rest/services/HP_Projects/HabitatProgramAreasOfResponsibilitiesGeoLib/MapServer/0' },
     { name: 'DNR Hydro (Watercourses)', color: '#457b9d', url: 'https://gis.dnr.wa.gov/site2/rest/services/Public_Forest_Practices/WADNR_PUBLIC_FP_Hydro/MapServer/0' },
     { name: 'DNR Hydro (Waterbodies)', color: '#457b9d', url: 'https://gis.dnr.wa.gov/site2/rest/services/Public_Forest_Practices/WADNR_PUBLIC_FP_Hydro/MapServer/1' },
     { name: 'WA Public Lands', color: '#52b788', url: 'https://gis.dnr.wa.gov/site3/rest/services/Public_Boundaries/WADNR_PUBLIC_Major_Public_Lands_NonDNR/MapServer/0' }
@@ -894,7 +894,7 @@
         const url = `${WDFW_BASE}/${layer.id}/query?geometry=${geomParam}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&outSR=4326&f=json&resultRecordCount=200`;
         const p = fetch(url).then(r => r.json()).then(data => {
           if (data.features) data.features.forEach(feat => phsResults.push({...feat, _layer: layer}));
-        }).catch(e => console.warn('WDFW layer fail:', e));
+        }).catch(e => console.warn('Habitat layer fail:', e));
         fetchPromises.push(p);
       });
 
@@ -905,7 +905,7 @@
             data.features.forEach(feat => {
                const attrs = feat.attributes || {};
                
-               if (extra.name === 'WDFW Habitat Program') {
+               if (extra.name === 'Habitat Program') {
                    const role = getAttr(attrs, ['rolecode', 'role', 'title']).toUpperCase();
                    if (role !== 'ARHPM' && role !== 'BIO') return;
                }
@@ -1017,7 +1017,7 @@
         let subTitle = item._layer ? item._layer.name : 'Spatial Intersect';
         let sciName = getAttr(attrs, ['scientific_name']) || '';
 
-        if (item._extraName === 'WDFW Habitat Program') {
+        if (item._extraName === 'Habitat Program') {
            const cName = getAttr(attrs, ['name', 'staffname', 'contactname', 'staff', 'contact', 'biologist']) || 'Unknown Name';
            const cRole = getAttr(attrs, ['rolecode', 'role', 'title']);
            const cPhone = getAttr(attrs, ['phone', 'phonenumber', 'telephone']);
@@ -1072,7 +1072,7 @@
            
            let drawerTitle = feature._isExtra ? feature._extraName : (getAttr(feature.attributes, ['occurrence_name']) || 'Unknown');
            
-           if (feature._extraName === 'WDFW Habitat Program') {
+           if (feature._extraName === 'Habitat Program') {
                const cName = getAttr(feature.attributes, ['name', 'staffname', 'contactname', 'staff', 'contact']);
                if (cName) drawerTitle = cName + ' (Habitat Program)';
            } else if (feature._extraName?.includes('DNR Hydro')) {
@@ -1149,7 +1149,7 @@
   function phsStyle(feature) {
     if (feature.properties?._isExtra) {
       // Applied strictly to force outline-only / no fill constraints for Habitat Program layer
-      if (feature.properties._extraName === 'WDFW Habitat Program') {
+      if (feature.properties._extraName === 'Habitat Program') {
           return { color: feature.properties._color, weight: 3, opacity: 0.9, fill: false, fillOpacity: 0 };
       }
       return { color: feature.properties._color, weight: 3, opacity: 0.9, fillColor: feature.properties._color, fillOpacity: 0.25 };
